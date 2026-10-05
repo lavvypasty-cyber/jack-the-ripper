@@ -45,22 +45,12 @@ jack.mp3            bundled scare sound (replace with your own file, same name)
 - `ShowBlip`: optional red blip (same native as rex-zombies)
 
 ## Sound
-Three layers (all can run together):
+
 1. **Bundled mp3 (main scare, works out of the box):** `jack.mp3` in the resource root plays
    via the NUI page — once for **everyone** on event start, then every `ChaseInterval`
    (**10s**) for **anyone within `ProximityRange` (60m)** of Jack (victim + bystanders).
    Swap the file for your own scare (keep the name, or update `html/index.html`).
    Tune with `Config.Sound.UseNui` / `NuiVolume`.
-2. **Native sting** (verified against
-   [femga/rdr3_discoveries](https://github.com/femga/rdr3_discoveries/tree/master/audio/frontend_soundsets)
-   + [Nowimps8 RedM list](https://github.com/Nowimps8/RedM-info/blob/master/FrontEndSounds.lua),
-   called as `PlaySoundFrontend(-1, name, set, true)` with bank preload `0x0F2A2175734926D8`):
-   start plays `DEATH_SCREEN_ENTER` / `DEATH_FAIL_RESPAWN_SOUNDS` for everyone, victim hears
-   `Heartbeat` / `RDRO_Sniper_Tension_Sounds` on the chase loop. Alternatives:
-   `sudden_death`, `OOB_death`, `FAIL`, `LeavingColter6_Gust`, `Strike_Heavy`, `Wanted_Spotted`.
-3. **Custom .ogg (optional):** drop files into
-   `resources/[standalone]/interact-sound/client/html/sounds/` (your `xsound` emulates the
-   same `InteractSound_SV` events), set `Config.Sound.UseCustom = true`.
 
 ## Commands
 - `jack_start [id]` — force start (admin)
