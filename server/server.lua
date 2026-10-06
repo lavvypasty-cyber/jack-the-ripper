@@ -141,13 +141,13 @@ RSGCore.Commands.Add('jack_start', 'Start Jack the Ripper event (admin)', { { na
         return
     end
     if startEvent(target) then
-        TriggerClientEvent('ox_lib:notify', source, { title = 'Jack', description = 'Event started on ID ' .. target, type = 'success', duration = 5000 })
+        --TriggerClientEvent('ox_lib:notify', source, { title = 'Jack', description = 'Event started on ID ' .. target, type = 'success', duration = 5000 })
     else
-        TriggerClientEvent('ox_lib:notify', source, { title = 'Jack', description = 'Event already active', type = 'error', duration = 5000 })
+       -- TriggerClientEvent('ox_lib:notify', source, { title = 'Jack', description = 'Event already active', type = 'error', duration = 5000 })
     end
 end, 'admin')
 
 RSGCore.Commands.Add('jack_stop', 'Stop Jack the Ripper event (admin)', {}, true, function(source)
     endEvent('admin stop')
-    TriggerClientEvent('ox_lib:notify', source, { title = 'Jack', description = 'Event stopped, weather restored', type = 'inform', duration = 5000 })
+    --TriggerClientEvent('ox_lib:notify', source, { title = 'Jack', description = 'Event stopped, weather restored', type = 'inform', duration = 5000 })
 end, 'admin')
