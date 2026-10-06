@@ -1,9 +1,18 @@
 local RSGCore = exports['rsg-core']:GetCoreObject()
 
-local activeJack = nil -- { target = src, startedAt = os.time ms }
+local activeJack = nil
 local nextEventAt = GetGameTimer() + math.random(Config.MinInterval, Config.MaxInterval)
+local joinTimes = {}
 
 local function debug(...) if Config.Debug then print('[jack-the-ripper]', ...) end end
+
+local function isNightHourServer()
+    local ok, h = pcall(function() return GetClockHours() end)
+    if ok and type(h) == 'number' then
+        return Config.ActiveHours[h] == true, h
+    end
+    return nil, nil
+end
 
 local function isActive()
     return activeJack ~= nil
@@ -12,9 +21,18 @@ end
 local function getRandomPlayer()
     local players = RSGCore.Functions.GetPlayers()
     if #players == 0 then return nil end
-    return players[math.random(1, #players)]
+    local grace = Config.JoinGrace or 0
+    local now = GetGameTimer()
+    local eligible = {}
+    for _, src in ipairs(players) do
+        local joinedAt = joinTimes[src]
+        if not joinedAt or (now - joinedAt) >= grace then
+            eligible[#eligible + 1] = src
+        end
+    end
+    local pool = (#eligible > 0) and eligible or players
+    return pool[math.random(1, #pool)]
 end
-
 
 local function startEvent(targetSrc)
     if isActive() then
@@ -25,14 +43,10 @@ local function startEvent(targetSrc)
         targetSrc = getRandomPlayer()
     end
     if not targetSrc then return false end
-
-   
     local Player = RSGCore.Functions.GetPlayer(targetSrc)
     if not Player then return false end
-
     activeJack = { target = targetSrc, startedAt = GetGameTimer() }
     debug('starting event for target', targetSrc)
-    
     TriggerClientEvent('jack-the-ripper:client:startEvent', -1, targetSrc)
     return true
 end
@@ -45,28 +59,30 @@ local function endEvent(reason)
     nextEventAt = GetGameTimer() + math.random(Config.MinInterval, Config.MaxInterval)
 end
 
-
 CreateThread(function()
     while true do
-        Wait(60000) -- check every minute
+        Wait(60000)
         if not isActive() and GetGameTimer() >= nextEventAt then
-            local players = RSGCore.Functions.GetPlayers()
-            if #players >= Config.MinPlayers then
-                local target = players[math.random(1, #players)]
-                debug('scheduler picking target', target)
-                startEvent(target)
-               
+            local isNight, hour = isNightHourServer()
+            if isNight == false then
+                debug(('daytime (hour %s), skipping, retry later'):format(tostring(hour)))
+                nextEventAt = GetGameTimer() + (Config.DayRetryInterval or (10 * 60 * 1000))
             else
-                nextEventAt = GetGameTimer() + 60000
+                local players = RSGCore.Functions.GetPlayers()
+                if #players >= Config.MinPlayers then
+                    local target = getRandomPlayer()
+                    debug('scheduler picking target', target)
+                    startEvent(target)
+                else
+                    nextEventAt = GetGameTimer() + math.random(Config.MinInterval, Config.MaxInterval)
+                end
             end
         end
-        -- safety: force-end stuck events
         if isActive() and (GetGameTimer() - activeJack.startedAt) > (Config.Lifetime + 120000) then
             endEvent('safety timeout')
         end
     end
 end)
-
 
 RegisterNetEvent('jack-the-ripper:server:abortNotNight', function()
     local src = source
@@ -74,10 +90,9 @@ RegisterNetEvent('jack-the-ripper:server:abortNotNight', function()
         debug('target reports not night, aborting')
         activeJack = nil
         TriggerClientEvent('jack-the-ripper:client:endEvent', -1)
-        nextEventAt = GetGameTimer() + (5 * 60 * 1000) -- retry in 5 min
+        nextEventAt = GetGameTimer() + (Config.DayRetryInterval or (10 * 60 * 1000))
     end
 end)
-
 
 RegisterNetEvent('jack-the-ripper:server:jackDown', function(reason)
     local src = source
@@ -85,7 +100,6 @@ RegisterNetEvent('jack-the-ripper:server:jackDown', function(reason)
         endEvent(reason or 'jack down')
     end
 end)
-
 
 RegisterNetEvent('jack-the-ripper:server:jackNetId', function(netId)
     local src = source
@@ -95,17 +109,31 @@ RegisterNetEvent('jack-the-ripper:server:jackNetId', function(netId)
     end
 end)
 
-
 AddEventHandler('playerDropped', function()
     local src = source
+    joinTimes[src] = nil
     if activeJack and activeJack.target == src then
         endEvent('target dropped')
     end
 end)
 
----------------------------------
--- admin commands
----------------------------------
+local function onPlayerLoaded(src)
+    joinTimes[src] = GetGameTimer()
+    debug('player loaded, join grace starts', src)
+    if not isActive() and nextEventAt - GetGameTimer() < (Config.JoinGrace or (10 * 60 * 1000)) then
+        nextEventAt = GetGameTimer() + math.random(Config.MinInterval, Config.MaxInterval)
+        debug('deferring next event, player just joined', src)
+    end
+end
+
+RegisterNetEvent('RSGCore:Server:OnPlayerLoaded', function()
+    onPlayerLoaded(source)
+end)
+
+AddEventHandler('RSGCore:Server:OnPlayerLoaded', function()
+    onPlayerLoaded(source)
+end)
+
 RSGCore.Commands.Add('jack_start', 'Start Jack the Ripper event (admin)', { { name = 'id', help = 'optional target server id' } }, true, function(source, args)
     local target = tonumber(args[1]) or getRandomPlayer()
     if not target then
